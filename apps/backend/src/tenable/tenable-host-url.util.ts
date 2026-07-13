@@ -7,6 +7,7 @@ import {HttpException, HttpStatus} from '@nestjs/common';
 // Forgery (SSRF) against internal services and cloud instance metadata
 // endpoints (e.g. 169.254.169.254).
 
+const IPV6_BRACKETS_REGEX = /^\[|\]$/g;
 const IPV6_ZONE_REGEX = /%.*$/;
 const IPV6_MAPPED_IPV4_REGEX = /^::ffff:(?<ipv4>\d+\.\d+\.\d+\.\d+)$/;
 const IPV6_MAPPED_HEX_REGEX =
@@ -149,8 +150,8 @@ export async function validateTenableHostUrl(
     throw invalidHostUrl('Tenable host URL must use https');
   }
 
-  // URL.hostname returns IPv6 literals without brackets
-  const hostname = parsed.hostname;
+  // Node's URL.hostname returns IPv6 literals with brackets (e.g. "[::1]")
+  const hostname = parsed.hostname.replace(IPV6_BRACKETS_REGEX, '');
   let addresses: string[];
   if (isIP(hostname)) {
     addresses = [hostname];
