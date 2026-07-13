@@ -6,8 +6,12 @@ import {
   Body,
   HttpException,
   HttpStatus,
-  All
+  All,
+  UseGuards
 } from '@nestjs/common';
+import {ConfigService} from '../config/config.service';
+import {JwtAuthGuard} from '../guards/jwt-auth.guard';
+import {validateTenableHostUrl} from './tenable-host-url.util';
 import {TenableService} from './tenable.service';
 import axios from 'axios';
 import {Request, Response} from 'express';
@@ -29,9 +33,13 @@ const TENABLE_CSP_NOT_SET =
 // NestJS controller that handles Tenable authentication and proxying requests to Tenable
 // It allows users to log in with their Tenable credentials and then proxies all subsequent requests
 // to the Tenable API, handling authentication via session storage.
+@UseGuards(JwtAuthGuard)
 @Controller('api/tenable')
 export class TenableController {
-  constructor(private readonly tenableService: TenableService) {}
+  constructor(
+    private readonly tenableService: TenableService,
+    private readonly configService: ConfigService
+  ) {}
 
   @Post('login')
   /**
@@ -52,17 +60,23 @@ export class TenableController {
       throw new HttpException('Missing credentials', HttpStatus.BAD_REQUEST);
     }
 
+    // Validate the host URL before making any outbound request (SSRF defense).
+    const validatedHostUrl = await validateTenableHostUrl(
+      host_url,
+      this.configService.getTenableHostUrl()
+    );
+
     try {
-      // This helps prevent double slashes in the resulting URL if host_url ends with a slash.
-      const fullUrl = `${host_url.replace(/\/$/, '')}/rest/currentUser`;
+      const fullUrl = `${validatedHostUrl}/rest/currentUser`;
       const result = await axios.get(fullUrl, {
+        maxRedirects: 0,
         headers: {
           'x-apikey': `accesskey=${accesskey}; secretkey=${secretkey}`
         }
       });
 
       // Assign the Tenable credentials to the session
-      req.session.tenable = {host_url, accesskey, secretkey};
+      req.session.tenable = {host_url: validatedHostUrl, accesskey, secretkey};
 
       // Return the authenticated user data
       // Note: result.data is already a plain object, no need to convert it.
@@ -195,7 +209,9 @@ export class TenableController {
         'reading'
       );
 
-      if (axios.isAxiosError(err)) {
+      if (err instanceof HttpException) {
+        throw err;
+      } else if (axios.isAxiosError(err)) {
         if (err.message.includes(cspMsg)) {
           throw new HttpException(
             {

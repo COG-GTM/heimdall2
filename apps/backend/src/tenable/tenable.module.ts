@@ -1,4 +1,5 @@
 import {Module} from '@nestjs/common';
+import {ConfigModule} from '../config/config.module';
 import {TenableController} from './tenable.controller';
 import {TenableService} from './tenable.service';
 
@@ -6,6 +7,7 @@ import {TenableService} from './tenable.service';
 // Registers the controller and service needed for routing Tenable requests.
 
 @Module({
+  imports: [ConfigModule],
   // Handles HTTP requests related to Tenable
   controllers: [TenableController],
   // Provides logic for proxying and interacting with Tenable API
