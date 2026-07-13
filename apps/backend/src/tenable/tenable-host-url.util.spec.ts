@@ -40,7 +40,7 @@ describe('validateTenableHostUrl', () => {
 
     it('should reject plain http (non-https) URLs', async () => {
       await expect(
-        validateTenableHostUrl('https://tenable.example.com'),
+        validateTenableHostUrl('http://tenable.example.com'),
       ).rejects.toThrow(HttpException);
     });
 

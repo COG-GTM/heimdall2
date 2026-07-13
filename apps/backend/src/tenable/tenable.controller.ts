@@ -209,7 +209,9 @@ export class TenableController {
         'reading'
       );
 
-      if (axios.isAxiosError(err)) {
+      if (err instanceof HttpException) {
+        throw err;
+      } else if (axios.isAxiosError(err)) {
         if (err.message.includes(cspMsg)) {
           throw new HttpException(
             {
