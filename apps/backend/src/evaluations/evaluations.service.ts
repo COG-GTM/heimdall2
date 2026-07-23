@@ -1,7 +1,7 @@
 import {IEvalPaginationParams} from '@heimdall/common/interfaces';
 import {Injectable, NotFoundException} from '@nestjs/common';
 import {InjectModel} from '@nestjs/sequelize';
-import {FindOptions, Op, WhereOptions, Sequelize} from 'sequelize';
+import {FindOptions, Op, WhereOptions} from 'sequelize';
 import {DatabaseService} from '../database/database.service';
 import {CreateEvaluationTagDto} from '../evaluation-tags/dto/create-evaluation-tag.dto';
 import {EvaluationTag} from '../evaluation-tags/evaluation-tag.model';
@@ -214,11 +214,7 @@ export class EvaluationsService {
       baseCriteria.push({'$user.email$': {[Op.like]: `${email}`}});
       baseCriteria.push({
         [Op.and]: {
-          '$groups->users.id$': {
-            [Op.eq]: Sequelize.literal(
-              `(SELECT id FROM "Users" WHERE "email" LIKE '${email}')`
-            )
-          }
+          '$groups->users.email$': {[Op.like]: `${email}`}
         }
       });
     }
@@ -293,11 +289,7 @@ export class EvaluationsService {
             {'$user.email$': {[Op.like]: `${userEmail}`}},
             {
               [Op.and]: {
-                '$groups->users.id$': {
-                  [Op.eq]: Sequelize.literal(
-                    `(SELECT id FROM "Users" WHERE "email" LIKE '${userEmail}')`
-                  )
-                }
+                '$groups->users.email$': {[Op.like]: `${userEmail}`}
               }
             }
           ]
