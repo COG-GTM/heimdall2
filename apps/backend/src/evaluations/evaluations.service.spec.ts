@@ -1,3 +1,4 @@
+import {IEvalPaginationParams} from '@heimdall/common/interfaces';
 import {NotFoundException} from '@nestjs/common';
 import {SequelizeModule} from '@nestjs/sequelize';
 import {Test} from '@nestjs/testing';
@@ -129,6 +130,47 @@ describe('EvaluationsService', () => {
       expect(foundGroup.users.length).toEqual(1);
       expect(foundGroup.users[0].id).toEqual(owner.id);
       expect(foundGroup.users[0].GroupUser.role).toEqual('owner');
+    });
+  });
+
+  describe('getAllEvaluations', () => {
+    it('should treat a malicious user email as data and not inject SQL', async () => {
+      // Second user so the injected subquery would return >1 "Users".id row.
+      await usersService.create({
+        ...CREATE_USER_DTO_TEST_OBJ,
+        email: 'second-user@example.com'
+      });
+      // Private evaluation owned by the first (querying) user.
+      await evaluationsService.create({
+        ...EVALUATION_WITH_TAGS_1,
+        data: {},
+        userId: user.id
+      });
+
+      // SQL metacharacters that, when interpolated raw into
+      // `... WHERE "email" LIKE '<email>'`, break out of the string literal and
+      // turn the subquery into one that matches every user. Under the previous
+      // Sequelize.literal implementation this caused a SequelizeDatabaseError
+      // ("more than one row returned by a subquery"); the parameterized query
+      // must instead treat the whole value as an opaque email string.
+      const maliciousEmail = `x' OR 'a'='a`;
+      const params: IEvalPaginationParams = {
+        offset: 0,
+        limit: 25,
+        order: ['createdAt', 'DESC']
+      };
+
+      const response = await evaluationsService.getAllEvaluations(
+        params,
+        maliciousEmail,
+        'user'
+      );
+      expect(response.evaluations).toEqual([]);
+      expect(response.totalItems).toEqual(0);
+
+      await expect(
+        evaluationsService.evaluationCount(maliciousEmail, 'user')
+      ).resolves.toEqual(0);
     });
   });
 
